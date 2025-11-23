@@ -3,10 +3,118 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { Mic, Volume2, Phone } from "lucide-react"
+import { Mic, Volume2, Phone, Loader2 } from "lucide-react"
+import { Conversation, ConversationContent, ConversationScrollButton, ConversationEmptyState } from "@/components/ui/conversation"
+import { ConversationBar } from "@/components/ui/conversation-bar"
+import { toast } from "sonner"
+
+// ConversationMessage interface for conversation history
+type ConversationMessage = {
+  id: string
+  source: "user" | "ai"
+  message: string
+  timestamp: Date
+}
+
+// Inline Message component for testing
+function MessageComponent({ source, content, timestamp }: { source: "user" | "ai"; content: string; timestamp?: Date }) {
+  const isUser = source === "user"
+  return (
+    <div className={`flex w-full gap-3 px-4 py-3 ${isUser ? "justify-end" : "justify-start"}`}>
+      <div className={`flex max-w-[80%] flex-col gap-1 rounded-lg px-4 py-2 shadow-sm ${isUser ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
+        <div className="text-sm leading-relaxed whitespace-pre-wrap break-words">
+          {content}
+        </div>
+        {timestamp && (
+          <div className={`text-xs opacity-70 ${isUser ? "text-right" : "text-left"}`}>
+            {timestamp.toLocaleTimeString()}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
 
 export default function VoiceAgentSection() {
-  const [agentId, setAgentId] = useState("")
+  // State management
+  const [agentId, setAgentId] = useState(process.env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID || "")
+  const [messages, setMessages] = useState<ConversationMessage[]>([])
+  const [isConnected, setIsConnected] = useState<boolean>(false)
+  const [isConnecting, setIsConnecting] = useState<boolean>(false)
+
+  // Callback functions for conversation events
+  const handleMessage = (message: any) => {
+    // Handle different possible message formats
+    const source = message.source || message.from || "ai"
+    const content = message.message || message.content || message.text || String(message)
+    
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: crypto.randomUUID(),
+        source: source as "user" | "ai",
+        message: content,
+        timestamp: new Date(),
+      },
+    ])
+  }
+
+  const handleConnecting = () => {
+    setIsConnecting(true)
+    setIsConnected(false)
+    toast.info("Connecting...", {
+      description: "Establishing connection to voice agent.",
+    })
+  }
+
+  const handleConnect = () => {
+    setIsConnecting(false)
+    setIsConnected(true)
+    toast.success("Connected", {
+      description: "Voice agent is ready. You can start speaking now.",
+    })
+  }
+
+  const handleDisconnect = () => {
+    setIsConnecting(false)
+    setIsConnected(false)
+    toast.info("Disconnected", {
+      description: "Voice agent connection has been closed.",
+    })
+  }
+
+  const handleError = (error: Error) => {
+    console.error("Connection error:", error)
+    setIsConnecting(false)
+    setIsConnected(false)
+
+    // Determine error type and show appropriate user-friendly message
+    const errorMessage = error.message.toLowerCase()
+
+    if (errorMessage.includes("permission") || errorMessage.includes("notallowederror")) {
+      toast.error("Microphone Access Required", {
+        description: "Please allow microphone access in your browser settings to use voice features.",
+      })
+    } else if (errorMessage.includes("notfounderror") || errorMessage.includes("no microphone")) {
+      toast.error("Microphone Not Found", {
+        description: "No microphone detected. Please connect a microphone and try again.",
+      })
+    } else if (errorMessage.includes("network") || errorMessage.includes("connection") || errorMessage.includes("timeout")) {
+      toast.error("Connection Failed", {
+        description: "Unable to connect to the voice agent. Please check your internet connection and try again.",
+      })
+    } else if (errorMessage.includes("agent") || errorMessage.includes("invalid")) {
+      toast.error("Invalid Agent Configuration", {
+        description: "Please check your Agent ID and try again.",
+      })
+    } else {
+      toast.error("Connection Error", {
+        description: "Unable to connect to the voice agent. Please try again later.",
+      })
+    }
+  }
+
+
 
   return (
     <div className="relative min-h-screen">
@@ -57,95 +165,73 @@ export default function VoiceAgentSection() {
       </section>
 
       {/* Voice Agent Integration Section */}
-      <section className="border-t border-border bg-secondary/30 py-20">
+      <section className="border-t border-border bg-secondary/30 py-12">
         <div className="mx-auto max-w-7xl px-6 lg:px-8">
           <div className="mx-auto max-w-2xl text-center">
-            <h2 className="mb-4 text-balance font-sans text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+            <h2 className="mb-3 text-balance font-sans text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
               Voice Agent Integration
             </h2>
-            <p className="mb-12 text-pretty leading-relaxed text-muted-foreground">
+            <p className="mb-8 text-pretty leading-relaxed text-muted-foreground">
               Connect your ElevenLabs voice agent below to enable real-time voice interactions.
             </p>
           </div>
 
-          <div className="mx-auto max-w-4xl">
-            <Card className="border-2 border-border bg-card p-8 shadow-sm sm:p-12">
-              {/* Configuration */}
-              <div className="mb-8">
-                <label htmlFor="agent-id" className="mb-2 block text-sm font-medium text-foreground">
-                  ElevenLabs Agent ID
-                </label>
-                <input
-                  id="agent-id"
-                  type="text"
-                  placeholder="Enter your agent ID here..."
-                  value={agentId}
-                  onChange={(e) => setAgentId(e.target.value)}
-                  className="w-full rounded-lg border border-input bg-background px-4 py-3 text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                />
-                <p className="mt-2 text-sm text-muted-foreground">
-                  Find your agent ID in the ElevenLabs dashboard under Agent Settings.
-                </p>
+          <div className="mx-auto max-w-3xl">
+
+            {/* Connection Status */}
+            {(isConnecting || isConnected) && (
+              <div className="mb-4 flex items-center justify-center gap-2 rounded-lg border border-border bg-card px-4 py-3">
+                {isConnecting && (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin text-yellow-500" />
+                    <span className="text-sm font-medium text-foreground">Connecting to voice agent...</span>
+                  </>
+                )}
+                {isConnected && (
+                  <>
+                    <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+                    <span className="text-sm font-medium text-foreground">Connected - Ready to chat</span>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Conversation Interface */}
+            <Card className="flex flex-col border-2 border-border bg-card shadow-sm overflow-hidden">
+              {/* Conversation History */}
+              <div className="h-[400px] overflow-hidden">
+                <Conversation className="h-full" initial="smooth" resize="smooth">
+                  <ConversationContent>
+                    {messages.length === 0 ? (
+                      <ConversationEmptyState
+                        icon={<Mic className="h-10 w-10" />}
+                        title="Start a conversation"
+                        description="Click the phone button below to connect with the AI voice agent"
+                      />
+                    ) : (
+                      messages.map((msg) => (
+                        <MessageComponent
+                          key={msg.id}
+                          source={msg.source}
+                          content={msg.message}
+                          timestamp={msg.timestamp}
+                        />
+                      ))
+                    )}
+                  </ConversationContent>
+                  <ConversationScrollButton />
+                </Conversation>
               </div>
 
-              {/* Agent Embed Area */}
-              <div className="relative overflow-hidden rounded-xl border-2 border-dashed border-border bg-secondary/50">
-                <div className="flex min-h-[400px] flex-col items-center justify-center p-12 text-center">
-                  {/* Placeholder for ElevenLabs widget */}
-                  <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-primary/10">
-                    <Mic className="h-10 w-10 text-primary" />
-                  </div>
-
-                  <h3 className="mb-3 text-xl font-semibold text-foreground">Your Voice Agent Will Appear Here</h3>
-
-                  <p className="mb-6 max-w-md text-balance text-sm leading-relaxed text-muted-foreground">
-                    Once you configure your ElevenLabs agent ID above, the interactive voice interface will be embedded
-                    in this space. Users can click to start speaking with your AI assistant.
-                  </p>
-
-                  {/* Integration Instructions */}
-                  <div className="mt-8 w-full max-w-md rounded-lg border border-border bg-background p-6 text-left">
-                    <h4 className="mb-3 font-semibold text-foreground">Integration Steps:</h4>
-                    <ol className="space-y-2 text-sm text-muted-foreground">
-                      <li className="flex gap-3">
-                        <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
-                          1
-                        </span>
-                        <span>Create your voice agent in ElevenLabs</span>
-                      </li>
-                      <li className="flex gap-3">
-                        <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
-                          2
-                        </span>
-                        <span>Copy the agent ID from your dashboard</span>
-                      </li>
-                      <li className="flex gap-3">
-                        <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
-                          3
-                        </span>
-                        <span>Paste it in the field above</span>
-                      </li>
-                      <li className="flex gap-3">
-                        <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
-                          4
-                        </span>
-                        <span>Add the ElevenLabs embed script to this component</span>
-                      </li>
-                    </ol>
-                  </div>
-                </div>
-              </div>
-
-              {/* Action Button */}
-              <div className="mt-8 flex justify-center">
-                <Button
-                  size="lg"
-                  className="bg-primary text-primary-foreground hover:bg-primary/90"
-                  disabled={!agentId}
-                >
-                  Configure Agent
-                </Button>
-              </div>
+              {/* Conversation Bar */}
+              <ConversationBar
+                agentId={agentId}
+                onConnecting={handleConnecting}
+                onConnect={handleConnect}
+                onDisconnect={handleDisconnect}
+                onError={handleError}
+                onMessage={handleMessage}
+              />
             </Card>
           </div>
         </div>

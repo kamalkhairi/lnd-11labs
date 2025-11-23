@@ -10,6 +10,30 @@
 This repository will stay in sync with your deployed chats on [v0.app](https://v0.app).
 Any changes you make to your deployed app will be automatically pushed to this repository from [v0.app](https://v0.app).
 
+## Configuration
+
+### Environment Variables
+
+To configure your ElevenLabs agent, you can set the following environment variable:
+
+- `NEXT_PUBLIC_ELEVENLABS_AGENT_ID` - Your ElevenLabs agent ID (optional)
+
+**Setup:**
+
+1. Copy `.env.example` to `.env.local`:
+   ```bash
+   cp .env.example .env.local
+   ```
+
+2. Add your ElevenLabs agent ID to `.env.local`:
+   ```
+   NEXT_PUBLIC_ELEVENLABS_AGENT_ID=your_agent_id_here
+   ```
+
+3. Find your agent ID in the [ElevenLabs dashboard](https://elevenlabs.io) under Agent Settings.
+
+**Note:** The agent ID can also be entered directly in the UI input field, which will override the environment variable.
+
 ## Deployment
 
 Your project is live at:

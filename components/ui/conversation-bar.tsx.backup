@@ -93,6 +93,7 @@ export const ConversationBar = React.forwardRef<
     const mediaStreamRef = React.useRef<MediaStream | null>(null)
 
     const conversation = useConversation({
+      debug: true, // Enable debug mode to get more message events
       onConnect: () => {
         console.log("ConversationBar: Connected")
         setAgentState("connected")
@@ -105,15 +106,57 @@ export const ConversationBar = React.forwardRef<
         setKeyboardOpen(false)
       },
       onMessage: (message) => {
-        // Ensure the message has the correct format
-        const formattedMessage = {
-          source: message.source || "ai",
-          message: message.message || String(message)
-        }
+        console.log("ConversationBar: onMessage received:", JSON.stringify(message, null, 2))
         
-        onMessage?.(formattedMessage)
+        const messageObj = message as any
+        
+        // Handle different message types based on ElevenLabs event structure
+        if (messageObj.type === 'agent_response') {
+          // Agent response message
+          const agentText = messageObj.agent_response_event?.agent_response
+          if (agentText) {
+            console.log("ConversationBar: Agent response:", agentText)
+            onMessage?.({ source: 'ai', message: agentText })
+          }
+        } else if (messageObj.type === 'user_transcript') {
+          // User transcript message
+          const userText = messageObj.user_transcription_event?.user_transcript
+          if (userText) {
+            console.log("ConversationBar: User transcript:", userText)
+            onMessage?.({ source: 'user', message: userText })
+          }
+        } else if (messageObj.type === 'agent_response_correction') {
+          // Corrected agent response after interruption
+          const correctedText = messageObj.agent_response_correction_event?.corrected_agent_response
+          if (correctedText) {
+            console.log("ConversationBar: Agent response correction:", correctedText)
+            onMessage?.({ source: 'ai', message: correctedText })
+          }
+        } else {
+          // Fallback for other message formats
+          console.log("ConversationBar: Unknown message type:", messageObj.type)
+          console.log("ConversationBar: Full message:", messageObj)
+        }
       },
-
+      onDebug: (debugEvent) => {
+        console.log("ConversationBar: onDebug:", debugEvent)
+        
+        // Check if debug event contains agent response
+        if (debugEvent && typeof debugEvent === 'object') {
+          const event = debugEvent as any
+          // Check for agent response in debug events
+          if (event.type === 'agent_response' || event.type === 'agent_message' || event.message) {
+            const agentMessage = event.message || event.text || event.content
+            if (agentMessage && typeof agentMessage === 'string') {
+              console.log("ConversationBar: Found agent message in debug:", agentMessage)
+              onMessage?.({ source: "ai", message: agentMessage })
+            }
+          }
+        }
+      },
+      onModeChange: (mode) => {
+        console.log("ConversationBar: onModeChange:", mode)
+      },
       micMuted: isMuted,
       onError: (error: unknown) => {
         console.error("Error:", error)
@@ -146,7 +189,7 @@ export const ConversationBar = React.forwardRef<
 
         await conversation.startSession({
           agentId,
-          connectionType: "webrtc",
+          connectionType: "websocket",
           onStatusChange: (status) => setAgentState(status.status),
         })
       } catch (error) {
@@ -183,13 +226,10 @@ export const ConversationBar = React.forwardRef<
 
       const messageToSend = textInput
       
-      // Send the message to the agent
-      conversation.sendUserMessage(messageToSend)
-      
       // Manually trigger onMessage for user's text input
-      // The SDK doesn't automatically call onMessage for text inputs
       onMessage?.({ source: "user", message: messageToSend })
       
+      conversation.sendUserMessage(messageToSend)
       setTextInput("")
       onSendMessage?.(messageToSend)
     }, [conversation, textInput, onSendMessage, onMessage])
@@ -322,9 +362,14 @@ export const ConversationBar = React.forwardRef<
                     variant="ghost"
                     size="icon"
                     onClick={handleStartOrEnd}
-                    disabled={agentState === "disconnecting"}
+                    disabled={agentState === "disconnecting" || agentState === "connecting"}
+                    className={cn(
+                      agentState === "connecting" && "cursor-not-allowed opacity-70"
+                    )}
                   >
-                    {isConnected || agentState === "connecting" ? (
+                    {agentState === "connecting" ? (
+                      <PhoneIcon className="h-5 w-5 animate-pulse" />
+                    ) : isConnected ? (
                       <XIcon className="h-5 w-5" />
                     ) : (
                       <PhoneIcon className="h-5 w-5" />
