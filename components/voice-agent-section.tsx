@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
+import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Mic, Volume2, Phone, Loader2 } from "lucide-react"
@@ -175,10 +176,13 @@ export default function VoiceAgentSection() {
         <div className="mx-auto max-w-7xl px-6 py-4 lg:px-8">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary">
-                <Volume2 className="h-5 w-5 text-primary-foreground" />
-              </div>
-              <span className="text-xl font-bold text-foreground">Voice AI</span>
+              <Image
+                src="/sdg-logo.jpg"
+                alt="SDG Logo"
+                width={160}
+                height={53}
+                className="h-13 w-auto"
+              />
             </div>
             <div className="flex items-center gap-2">
               {termsAccepted && (
@@ -191,9 +195,6 @@ export default function VoiceAgentSection() {
                   View Terms
                 </Button>
               )}
-              <Button variant="outline" size="sm">
-                Documentation
-              </Button>
             </div>
           </div>
         </div>
@@ -350,19 +351,8 @@ export default function VoiceAgentSection() {
       {/* Footer */}
       <footer className="border-t border-border bg-secondary/30 py-12">
         <div className="mx-auto max-w-7xl px-6 lg:px-8">
-          <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
-            <p className="text-sm text-muted-foreground">© 2025 Voice AI. All rights reserved.</p>
-            <div className="flex gap-6 text-sm text-muted-foreground">
-              <a href="#" className="transition-colors hover:text-primary">
-                Privacy
-              </a>
-              <a href="#" className="transition-colors hover:text-primary">
-                Terms
-              </a>
-              <a href="#" className="transition-colors hover:text-primary">
-                Support
-              </a>
-            </div>
+          <div className="flex justify-center">
+            <p className="text-sm text-muted-foreground">© {new Date().getFullYear()} SD Guthrie Berhad. All rights reserved.</p>
           </div>
         </div>
       </footer>
